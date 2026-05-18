@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "gRPC Inspector",
+  "version": "0.1.0",
+  "description": "Decodes gRPC-Web traffic in Firefox DevTools",
+  "devtools_page": "devtools.html",
+  "permissions": ["storage"],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "grpc-inspector@tomi77.github.com",
+      "strict_min_version": "109.0"
+    }
+  }
+}
