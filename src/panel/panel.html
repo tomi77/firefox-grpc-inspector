@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><link rel="stylesheet" href="panel.css"></head>
+<body>
+  <div id="toolbar">
+    <span class="title">gRPC Inspector</span>
+    <button id="btn-clear">Wyczyść</button>
+    <button id="btn-protos">⚙ Proto pliki</button>
+  </div>
+  <div id="main">
+    <div id="request-list">
+      <div id="list-header">
+        <span class="col-url">URL / Metoda</span>
+        <span class="col-status">Status</span>
+        <span class="col-time">ms</span>
+      </div>
+      <div id="list-body"></div>
+    </div>
+    <div id="detail-pane">
+      <div id="detail-empty">Wybierz request z listy</div>
+      <div id="detail-content" hidden>
+        <div id="detail-header">
+          <span id="detail-url"></span>
+          <span id="detail-meta"></span>
+        </div>
+        <div id="detail-tabs">
+          <button class="tab-btn active" data-tab="request">Zapytanie</button>
+          <button class="tab-btn" data-tab="response">Odpowiedź</button>
+        </div>
+        <div id="detail-body">
+          <div id="tab-request"  class="tab-panel"></div>
+          <div id="tab-response" class="tab-panel" hidden></div>
+        </div>
+        <div id="schema-hint"></div>
+      </div>
+    </div>
+  </div>
+  <div id="proto-overlay" hidden>
+    <div id="proto-panel">
+      <div id="proto-header">
+        <span>Proto pliki</span>
+        <button id="btn-close-proto">✕</button>
+      </div>
+      <div id="proto-list"></div>
+      <button id="btn-add-proto">+ Wczytaj plik .proto</button>
+      <input type="file" id="proto-file-input" accept=".proto" multiple hidden>
+      <div id="proto-error"></div>
+    </div>
+  </div>
+  <script src="panel.js"></script>
+</body>
+</html>
