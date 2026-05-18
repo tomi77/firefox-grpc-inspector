@@ -28,7 +28,6 @@ window.receiveRequest = entry => {
   entry.schema = schema;
   entry.decodedReq = decodeEntry(entry.requestBody,  entry.requestEncoding,  schema?.requestType,  schema?.root);
   entry.decodedRes = decodeEntry(entry.responseBody, entry.responseEncoding, schema?.responseType, schema?.root);
-  entry._path = path;
   requests.push(entry);
   appendRow(entry);
 };
@@ -103,24 +102,26 @@ function renderObj(obj, isSchema, depth) {
 
   const wrap = el('div', depth > 0 ? 'pnested' : '');
   for (const [key, val] of Object.entries(obj)) {
-    const row = el('div', 'pf');
     if (isSchema) {
+      const row = el('div', 'pf');
       row.appendChild(el('span', 'pks', key + ': '));
       row.appendChild(typeof val === 'object' && val !== null
         ? renderObj(val, true, depth + 1)
         : renderPrim(val));
+      wrap.appendChild(row);
     } else {
       const vals = Array.isArray(val) ? val : [val];
       for (const v of vals) {
-        row.appendChild(el('span', 'pk', `"${key}" `));
-        row.appendChild(el('span', 'pt', `(${v.type})`));
-        row.appendChild(text(': '));
-        row.appendChild(v.type === 'message'
+        const vRow = el('div', 'pf');
+        vRow.appendChild(el('span', 'pk', `"${key}" `));
+        vRow.appendChild(el('span', 'pt', `(${v.type})`));
+        vRow.appendChild(text(': '));
+        vRow.appendChild(v.type === 'message'
           ? renderObj(v.value, false, depth + 1)
           : renderPrim(v.value));
+        wrap.appendChild(vRow);
       }
     }
-    wrap.appendChild(row);
   }
   return wrap;
 }
