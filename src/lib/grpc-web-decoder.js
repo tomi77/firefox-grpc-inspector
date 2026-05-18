@@ -1,10 +1,24 @@
 export function bodyToBytes(body, encoding) {
   if (body instanceof Uint8Array) return body;
   if (typeof body !== 'string' || !body) return new Uint8Array(0);
-  const binary = atob(body);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
+  if (encoding === 'base64') {
+    const binary = atob(body);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+  // grpc-web-text lub nieznany encoding — najpierw próbuj atob (application-level base64)
+  try {
+    const binary = atob(body);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch {
+    // Surowy ciąg binarny
+    const bytes = new Uint8Array(body.length);
+    for (let i = 0; i < body.length; i++) bytes[i] = body.charCodeAt(i) & 0xff;
+    return bytes;
+  }
 }
 
 export function decodeFrames(data) {

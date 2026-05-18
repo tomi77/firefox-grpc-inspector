@@ -117,8 +117,11 @@ function reflectiveDecode(bytes, type, root) {
       val = scalarRead(r);
     } else if (field.type === 'bytes') {
       val = Array.from(r.bytes());
-    } else {
+    } else if (resolvedType) {
       val = reflectiveDecode(r.bytes(), resolvedType, root);
+    } else {
+      r.skipType(wireType);
+      continue;
     }
 
     if (field.repeated) (msg[field.name] ??= []).push(val);

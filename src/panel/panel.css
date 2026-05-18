@@ -54,3 +54,5 @@ button:hover { background: #4c4c4c; }
 .proto-row-name { flex: 1; color: #9cdcfe; }
 .proto-row-url { color: #858585; font-size: 11px; flex: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #proto-error { color: #f48771; font-size: 11px; min-height: 16px; }
+
+.trailer-text { white-space: pre-wrap; word-break: break-all; color: #858585; font-size: 11px; }

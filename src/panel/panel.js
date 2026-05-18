@@ -33,14 +33,75 @@ window.receiveRequest = entry => {
 };
 
 // ── decoding ─────────────────────────────────────────────────
+function tryDecodeFrames(bytes, schemaType, root) {
+  const allFrames = decodeFrames(bytes);
+  const dataFrames = allFrames.filter(f => !f.isTrailer);
+  if (!dataFrames.length) return null;
+  const msg = dataFrames[0].data;
+  if (schemaType && root) return { kind: 'schema',    value: decodeWithSchema(msg, schemaType, root) };
+  return                        { kind: 'heuristic', value: decodeMessage(msg) };
+}
+
+function base64ToBytes(str) {
+  // Własny dekoder: obsługuje wewnętrzny '=' (gRPC-web-text = 2 bloki base64)
+  // oraz URL-safe base64 (-/_)
+  const LU = new Uint8Array(256).fill(64);
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    .split('').forEach((c, i) => { LU[c.charCodeAt(0)] = i; });
+  LU[45] = 62; LU[95] = 63;
+  const s = str.replace(/\s/g, '');
+  const r = [];
+  for (let i = 0; i < s.length; i += 4) {
+    const a = LU[s.charCodeAt(i)];
+    const b = i + 1 < s.length ? LU[s.charCodeAt(i + 1)] : 64;
+    if (a >= 64 || b >= 64) break;
+    r.push((a << 2) | (b >> 4));
+    if (i + 2 >= s.length || s[i + 2] === '=') continue;
+    const c = LU[s.charCodeAt(i + 2)];
+    if (c >= 64) break;
+    r.push(((b & 15) << 4) | (c >> 2));
+    if (i + 3 >= s.length || s[i + 3] === '=') continue;
+    const d = LU[s.charCodeAt(i + 3)];
+    if (d >= 64) break;
+    r.push(((c & 3) << 6) | d);
+  }
+  return new Uint8Array(r);
+}
+
 function decodeEntry(body, encoding, schemaType, root) {
-  if (!body) return null;
+  if (!body) return { kind: 'no-body' };
   try {
-    const frames = decodeFrames(bodyToBytes(body, encoding)).filter(f => !f.isTrailer);
-    if (!frames.length) return null;
-    const msg = frames[0].data;
-    if (schemaType && root) return { kind: 'schema',    value: decodeWithSchema(msg, schemaType, root) };
-    return                        { kind: 'heuristic', value: decodeMessage(msg) };
+    const bytes = bodyToBytes(body, encoding);
+
+    // Iteracyjne próby dekodowania base64 (max 3 warstwy)
+    let current = bytes;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = tryDecodeFrames(current, schemaType, root);
+      if (r) return r;
+
+      // Jeśli bajty wyglądają jak ASCII — spróbuj traktować je jako base64
+      if (!current.length || current[0] < 0x20 || current[0] > 0x7E) break;
+      try {
+        const str = Array.from(current, b => String.fromCharCode(b)).join('');
+        const next = base64ToBytes(str);
+        if (next.length >= current.length) break; // brak postępu
+        current = next;
+      } catch { break; }
+    }
+
+    const allFrames = decodeFrames(current);
+    const trailerFrames = allFrames.filter(f => f.isTrailer);
+    if (trailerFrames.length) {
+      const text = new TextDecoder().decode(trailerFrames[0].data);
+      return { kind: 'trailer', value: text };
+    }
+
+    const hexPreview = Array.from(bytes.slice(0, 24))
+      .map(b => b.toString(16).padStart(2, '0')).join(' ');
+    const hexCurrent = Array.from(current.slice(0, 24))
+      .map(b => b.toString(16).padStart(2, '0')).join(' ');
+    return { kind: 'no-frames', byteCount: bytes.length, hexPreview,
+             currentLen: current.length, hexCurrent };
   } catch (e) {
     return { kind: 'error', value: e.message };
   }
@@ -91,8 +152,22 @@ function selectEntry(id) {
 // ── rendering decoded data ────────────────────────────────────
 function renderDecoded(container, decoded) {
   container.innerHTML = '';
-  if (!decoded)                        { container.textContent = '(brak danych)'; return; }
-  if (decoded.kind === 'error')        { container.textContent = `Błąd: ${decoded.value}`; return; }
+  if (!decoded || decoded.kind === 'no-body') { container.textContent = '(brak danych)'; return; }
+  if (decoded.kind === 'error')     { container.textContent = `Błąd: ${decoded.value}`; return; }
+  if (decoded.kind === 'no-frames') {
+    container.textContent = [
+      `Brak ramek gRPC-web (${decoded.byteCount} B)`,
+      `Pierwsze bajty raw:     ${decoded.hexPreview}`,
+      `Po dekodowaniu (${decoded.currentLen} B): ${decoded.hexCurrent}`,
+    ].join('\n');
+    return;
+  }
+  if (decoded.kind === 'trailer')   {
+    const pre = el('pre', 'trailer-text');
+    pre.textContent = decoded.value;
+    container.appendChild(pre);
+    return;
+  }
   container.appendChild(renderObj(decoded.value, decoded.kind === 'schema', 0));
 }
 
