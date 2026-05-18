@@ -1,7 +1,14 @@
 import protobuf from 'protobufjs';
 
 export function parseProtoText(text) {
-  const { root } = protobuf.parse(text, { keepCase: true });
+  const root = new protobuf.Root();
+  const result = protobuf.parse(text, root, { keepCase: true });
+
+  for (const imp of (result.imports ?? [])) {
+    const def = protobuf.common[imp];
+    if (def) root.addJSON(def.nested);
+  }
+
   const urlMap = {};
 
   function walk(ns, prefix) {
@@ -11,8 +18,8 @@ export function parseProtoText(text) {
       if (obj instanceof protobuf.Service) {
         for (const [methodName, method] of Object.entries(obj.methods)) {
           urlMap[`/${fullName}/${methodName}`] = {
-            requestType:  resolveType(method.requestType,  prefix),
-            responseType: resolveType(method.responseType, prefix),
+            requestType:  resolveType(method.requestType,  prefix, root),
+            responseType: resolveType(method.responseType, prefix, root),
             serviceName: name,
             methodName,
           };
@@ -26,9 +33,15 @@ export function parseProtoText(text) {
   return { root, urlMap };
 }
 
-function resolveType(typeName, pkg) {
+function resolveType(typeName, pkg, root) {
   if (typeName.startsWith('.')) return typeName.slice(1);
-  return pkg ? `${pkg}.${typeName}` : typeName;
+  if (!pkg) return typeName;
+  const parts = pkg.split('.');
+  for (let i = parts.length; i > 0; i--) {
+    const candidate = parts.slice(0, i).join('.') + '.' + typeName;
+    if (root.lookup(candidate)) return candidate;
+  }
+  return typeName;
 }
 
 export function decodeWithSchema(bytes, typeName, root) {

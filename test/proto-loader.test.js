@@ -42,3 +42,20 @@ describe('decodeWithSchema', () => {
     expect(result.name).toBe('Jan');
   });
 });
+
+describe('parseProtoText – cross-package types', () => {
+  it('resolves google.protobuf.Empty without prepending package name', () => {
+    const PROTO_EMPTY = `
+syntax = "proto3";
+package gpswebapi.v1;
+import "google/protobuf/empty.proto";
+service GpsService {
+  rpc Ping (google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+`;
+    const { urlMap } = parseProtoText(PROTO_EMPTY);
+    const e = urlMap['/gpswebapi.v1.GpsService/Ping'];
+    expect(e.requestType).toBe('google.protobuf.Empty');
+    expect(e.responseType).toBe('google.protobuf.Empty');
+  });
+});
