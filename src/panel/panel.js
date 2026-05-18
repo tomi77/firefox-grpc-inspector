@@ -22,11 +22,13 @@ const protoError   = $('proto-error');
 
 // ── public API called by devtools.js ────────────────────────
 window.receiveRequest = entry => {
-  const path = new URL(entry.url).pathname;
+  let path;
+  try { path = new URL(entry.url).pathname; } catch { return; }
   const schema = schemas.get(path) ?? null;
   entry.schema = schema;
   entry.decodedReq = decodeEntry(entry.requestBody,  entry.requestEncoding,  schema?.requestType,  schema?.root);
   entry.decodedRes = decodeEntry(entry.responseBody, entry.responseEncoding, schema?.responseType, schema?.root);
+  entry._path = path;
   requests.push(entry);
   appendRow(entry);
 };
@@ -47,14 +49,22 @@ function decodeEntry(body, encoding, schemaType, root) {
 
 // ── request list ─────────────────────────────────────────────
 function appendRow(entry) {
-  const path   = new URL(entry.url).pathname;
-  const method = path.split('/').pop();
+  let path, method;
+  try {
+    path   = new URL(entry.url).pathname;
+    method = path.split('/').pop();
+  } catch {
+    path   = entry.url;
+    method = entry.url;
+  }
   const row = document.createElement('div');
   row.className = 'req-row';
   row.dataset.id = entry.id;
-  row.innerHTML = `<span class="col-url" title="${path}">${method}</span>
-    <span class="col-status">${entry.status}</span>
-    <span class="col-time">${entry.time}</span>`;
+  const urlSpan = el('span', 'col-url', method);
+  urlSpan.title = path;
+  row.appendChild(urlSpan);
+  row.appendChild(el('span', 'col-status', String(entry.status)));
+  row.appendChild(el('span', 'col-time',   String(entry.time)));
   row.addEventListener('click', () => selectEntry(entry.id));
   listBody.appendChild(row);
 }
@@ -65,7 +75,8 @@ function selectEntry(id) {
   const entry = requests.find(r => r.id === id);
   if (!entry) return;
 
-  const path = new URL(entry.url).pathname;
+  let path = entry.url;
+  try { path = new URL(entry.url).pathname; } catch {}
   detailEmpty.hidden   = true;
   detailContent.hidden = false;
   detailUrl.textContent  = path;
@@ -99,12 +110,15 @@ function renderObj(obj, isSchema, depth) {
         ? renderObj(val, true, depth + 1)
         : renderPrim(val));
     } else {
-      row.appendChild(el('span', 'pk', `"${key}" `));
-      row.appendChild(el('span', 'pt', `(${val.type})`));
-      row.appendChild(text(': '));
-      row.appendChild(val.type === 'message'
-        ? renderObj(val.value, false, depth + 1)
-        : renderPrim(val.value));
+      const vals = Array.isArray(val) ? val : [val];
+      for (const v of vals) {
+        row.appendChild(el('span', 'pk', `"${key}" `));
+        row.appendChild(el('span', 'pt', `(${v.type})`));
+        row.appendChild(text(': '));
+        row.appendChild(v.type === 'message'
+          ? renderObj(v.value, false, depth + 1)
+          : renderPrim(v.value));
+      }
     }
     wrap.appendChild(row);
   }
@@ -193,9 +207,9 @@ async function getStoredFiles() {
 
 // ── restore saved protos on startup ──────────────────────────
 (async () => {
-  for (const { text } of await getStoredFiles()) {
+  for (const { text: protoText } of await getStoredFiles()) {
     try {
-      const { root, urlMap } = parseProtoText(text);
+      const { root, urlMap } = parseProtoText(protoText);
       for (const [url, info] of Object.entries(urlMap)) schemas.set(url, { ...info, root });
     } catch {}
   }
